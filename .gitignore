@@ -1,0 +1,12 @@
+# Ignore environment variables file
+.env
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environment folders
+.venv/
+env/
+venv/
