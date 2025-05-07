@@ -16,9 +16,11 @@ class RecipeCreate(RecipeBase):
 class RecipeOut(RecipeBase):
     id: int
     owner_id: int
+    total_favorites: int = 0  # Better name than favorites_count
+    is_favorite: bool = False  # Better name than favorited_by_current_user
 
     class Config:
-        from_attributes = True  # Updated from orm_mode in newer Pydantic versions
+        orm_mode = True
 
 class RecipeNoteCreate(BaseModel):
     text: str

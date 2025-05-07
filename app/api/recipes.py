@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from app.api.deps import get_db, get_current_user
-from app.models.recipe import Recipe
+from app.models.recipe import Recipe, Favorite
 from app.crud import crud_recipe
 from app.schemas.recipe import RecipeCreate, RecipeOut
 from app.schemas.recipe import RecipeNoteCreate, RecipeNoteOut
@@ -30,14 +30,37 @@ def list_recipes(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
+    # Base query for recipes
     query = db.query(Recipe).filter(Recipe.owner_id == current_user.id)
+    
+    # Apply filters
     if cuisine:
         query = query.filter(Recipe.cuisine.ilike(f"%{cuisine}%"))
     if ingredients:
         query = query.filter(Recipe.ingredients.ilike(f"%{ingredients}%"))
     if tags:
         query = query.filter(Recipe.tags.ilike(f"%{tags}%"))
+    
+    # Get paginated recipes
     recipes = query.offset((page - 1) * limit).limit(limit).all()
+    
+    # Add favorites metadata to each recipe
+    for recipe in recipes:
+        # Get total favorites count
+        total_favorites = db.query(Favorite).filter(
+            Favorite.recipe_id == recipe.id
+        ).count()
+        
+        # Check if current user has favorited
+        is_favorite = db.query(Favorite).filter(
+            Favorite.recipe_id == recipe.id,
+            Favorite.user_id == current_user.id
+        ).first() is not None
+        
+        # Add favorites metadata
+        setattr(recipe, 'total_favorites', total_favorites)
+        setattr(recipe, 'is_favorite', is_favorite)
+    
     return recipes
 
 @router.get("/{recipe_id}", response_model=RecipeOut)
@@ -46,9 +69,27 @@ def read_recipe(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    recipe = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.owner_id == current_user.id).first()
+    # Get recipe with favorite counts
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
+    
+    # Get total favorites count
+    total_favorites = db.query(Favorite).filter(
+        Favorite.recipe_id == recipe_id
+    ).count()
+    
+    # Check if current user has favorited
+    is_favorite = db.query(Favorite).filter(
+        Favorite.recipe_id == recipe_id,
+        Favorite.user_id == current_user.id
+    ).first() is not None
+
+    # Add favorites metadata to recipe
+    setattr(recipe, 'total_favorites', total_favorites)
+    setattr(recipe, 'is_favorite', is_favorite)
+    
     return recipe
 
 @router.put("/{recipe_id}", response_model=RecipeOut)
