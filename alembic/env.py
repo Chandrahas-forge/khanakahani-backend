@@ -3,41 +3,42 @@ import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
-
 from alembic import context
 
-# Ensure the project's root is in sys.path so that imports like "app.db.base" work.
+# Ensure the project's root is in sys.path so imports like "app.db.base" work
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# this is the Alembic Config object, which provides access to the values within the .ini file in use.
+# this is the Alembic Config object, which provides access to the .ini file in use
 config = context.config
 
-# Interpret the config file for Python logging.
+# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Load environment variables from the .env file located in the project root.
+# Load environment variables from the .env file
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')), ".env"))
+basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+load_dotenv(os.path.join(basedir, '.env'))
 
-# Override sqlalchemy.url in alembic.ini with the environment variable.
-database_url = os.getenv("SQLALCHEMY_DATABASE_URL")
+# Pull in the Pydantic‑built URL (which uses DB_HOST, POSTGRES_USER, etc.)
+from app.core.config import settings
+database_url = settings.SQLALCHEMY_DATABASE_URL
 if not database_url:
-    raise Exception("SQLALCHEMY_DATABASE_URL not set in .env")
-config.set_main_option("sqlalchemy.url", database_url)
+    raise RuntimeError("settings.SQLALCHEMY_DATABASE_URL is not set")
+config.set_main_option("sqlalchemy.url", str(database_url))
 
-# Import Base and register all models
-from app.db.base import register_models
-target_metadata = register_models()
+# Import Base and register all models so that metadata is populated
+from app.db.base import Base, register_models
+register_models()
 
-# Verify models are registered
-print(f"Registered models: {[model.__name__ for model in Base.metadata.tables.values()]}")
+# Point Alembic at your metadata
+target_metadata = Base.metadata
+
+# (Optional) Debug print of registered tables
+print(f"Registered tables for migration: {list(target_metadata.tables.keys())}")
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-    
-    This configures the context with just a URL and not an Engine.
-    """
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -51,10 +52,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-    
-    In this scenario we need to create an Engine and associate a connection with the context.
-    """
+    """Run migrations in 'online' mode."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -64,7 +62,7 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata
+            target_metadata=target_metadata,
         )
 
         with context.begin_transaction():

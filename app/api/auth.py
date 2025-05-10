@@ -34,7 +34,7 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token({"sub": str(user.id)})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "user_id":user.id}
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 def logout(current_user=Depends(get_current_user)):

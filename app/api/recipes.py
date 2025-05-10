@@ -134,8 +134,33 @@ def mark_favorite(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    favorite = crud_recipe.add_favorite(db, recipe_id, current_user.id)
-    return {"msg": "Recipe marked as favorite"} if favorite else HTTPException(status_code=400, detail="Could not mark as favorite")
+    # First check if recipe exists
+    recipe = db.query(Recipe).filter(Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=400, detail="Recipe not found")
+    
+    # Check if already favorited
+    existing_favorite = db.query(Favorite).filter(
+        Favorite.recipe_id == recipe_id,
+        Favorite.user_id == current_user.id
+    ).first()
+    
+    if existing_favorite:
+        raise HTTPException(status_code=400, detail="Recipe already marked as favorite")
+    
+    try:
+        # Create new favorite
+        new_favorite = Favorite(
+            recipe_id=recipe_id,
+            user_id=current_user.id
+        )
+        db.add(new_favorite)
+        db.commit()
+        return {"msg": "Recipe marked as favorite"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error adding favorite: {str(e)}")  # For debugging
+        raise HTTPException(status_code=400, detail="Could not mark as favorite")
 
 @router.delete("/{recipe_id}/favorite", status_code=status.HTTP_200_OK)
 def remove_favorite(
@@ -143,10 +168,23 @@ def remove_favorite(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    favorite = crud_recipe.remove_favorite(db, recipe_id, current_user.id)
+    # Check if favorite exists
+    favorite = db.query(Favorite).filter(
+        Favorite.recipe_id == recipe_id,
+        Favorite.user_id == current_user.id
+    ).first()
+    
     if not favorite:
         raise HTTPException(status_code=400, detail="Recipe was not marked as favorite")
-    return {"msg": "Favorite removed"}
+    
+    try:
+        db.delete(favorite)
+        db.commit()
+        return {"msg": "Favorite removed"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error removing favorite: {str(e)}")  # For debugging
+        raise HTTPException(status_code=400, detail="Could not remove favorite")
 
 @router.post("/{recipe_id}/notes", response_model=RecipeNoteOut, status_code=status.HTTP_201_CREATED)
 def add_recipe_note(

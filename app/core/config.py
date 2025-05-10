@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    DB_HOST: str = "localhost"           # ← new setting
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
             scheme="postgresql",
             username=data.get("POSTGRES_USER"),
             password=data.get("POSTGRES_PASSWORD"),
-            host="db",
+            host=data.get("DB_HOST"),
             port=5432,
             path=data.get("POSTGRES_DB") or "",
         )
